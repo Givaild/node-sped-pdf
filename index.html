@@ -40,11 +40,14 @@
     </div>
 
     <script type="module" async>
-        import { DAV55, DANFe, DANFCe } from './src/index.ts'; // descomente se o arquivo existir
+        import { DAV55, DANFe, DANFCe } from './src/index.ts';
         //const textarea = document.getElementById("meuTextarea");
         //textarea.addEventListener("input", onChangeTexto);
 
-        DANFCe({ xml: await fetch("/DANFE.xml").then(res => res.text()), logo: "http://localhost:5173/logo.jpg", orcamento: true }).then(res => {
+        // Permite trocar o XML pela URL: ?xml=/DANFE-homologacao.xml
+        const arquivoXML = new URLSearchParams(location.search).get("xml") || "/DANFE.xml";
+
+        DANFe({ xml: await fetch(arquivoXML).then(res => res.text()) }).then(res => {
             console.log(res)
             const blob = new Blob([res], { type: 'application/pdf' }); // <- usa res direto
             const url = URL.createObjectURL(blob);
