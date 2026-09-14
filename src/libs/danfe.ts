@@ -1,7 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, PDFFont } from "pdf-lib"
 import { XMLParser } from "fast-xml-parser"
 import JsBarcode from "jsbarcode"
-import canvas from "canvas"
 
 
 
