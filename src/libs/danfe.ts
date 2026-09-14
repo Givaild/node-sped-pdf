@@ -161,7 +161,13 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         // Define altura da linha baseada no tamanho da fonte, se não especificada
         const effectiveLineHeight = lineHeight ?? size * .9;
 
-        const lines = wrapText(text, maxWidth, font, size);
+        // A quebra tem que descontar o recuo que o desenho aplica (drawX = x + 4). Sem isto o
+        // texto e quebrado supondo que comeca em x, mas e desenhado 4pt a direita, e cada linha
+        // termina 4pt alem do previsto — o que faz o infCpl invadir o campo RESERVADO AO FISCO.
+        const RECUO_DESENHO = 4;
+        const larguraUtil = Math.max(1, maxWidth - RECUO_DESENHO);
+
+        const lines = wrapText(text, larguraUtil, font, size);
         if (cacl) return lines.length;
 
         lines.forEach((line, index) => {
@@ -169,9 +175,9 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
             let drawX = x + 4;
 
             if (align === 'center') {
-                drawX = x + (maxWidth - textWidth) / 2;
+                drawX = x + (larguraUtil - textWidth) / 2;
             } else if (align === 'right') {
-                drawX = x + maxWidth - textWidth;
+                drawX = x + larguraUtil - textWidth;
             }
 
             page.drawText(line, {
@@ -761,7 +767,6 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         const textoEsquerda = `Impresso em ${dataFormatada} às ${horaFormatada}. ${xml.NFe.infNFe?.infRespTec?.xContato || ""}`;
 
         addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
-        addTXT({ page, text: "Powered by @node-sped-pdf", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.985, align: "right", fontStyle: "italic" });
     }
 
 

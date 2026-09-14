@@ -111,15 +111,17 @@ var DANFe = async (data = {}) => {
     }
     if (maxWidth + x > PDF.width) maxWidth = PDF.width - x - 5;
     const effectiveLineHeight = lineHeight ?? size * 0.9;
-    const lines = wrapText(text, maxWidth, font, size);
+    const RECUO_DESENHO = 4;
+    const larguraUtil = Math.max(1, maxWidth - RECUO_DESENHO);
+    const lines = wrapText(text, larguraUtil, font, size);
     if (cacl) return lines.length;
     lines.forEach((line, index) => {
       const textWidth = font.widthOfTextAtSize(line, size);
       let drawX = x + 4;
       if (align === "center") {
-        drawX = x + (maxWidth - textWidth) / 2;
+        drawX = x + (larguraUtil - textWidth) / 2;
       } else if (align === "right") {
-        drawX = x + maxWidth - textWidth;
+        drawX = x + larguraUtil - textWidth;
       }
       page.drawText(line, {
         x: drawX,
@@ -577,7 +579,6 @@ var DANFe = async (data = {}) => {
     const horaFormatada = agora.toLocaleTimeString("pt-BR");
     const textoEsquerda = `Impresso em ${dataFormatada} \xE0s ${horaFormatada}. ${xml.NFe.infNFe?.infRespTec?.xContato || ""}`;
     addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
-    addTXT({ page, text: "Powered by @node-sped-pdf", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.985, align: "right", fontStyle: "italic" });
   }
   async function addIMG({
     page,
@@ -1529,7 +1530,6 @@ var DAV55 = async (data = { xml: {} }) => {
     const horaFormatada = agora.toLocaleTimeString("pt-BR");
     const textoEsquerda = `Impresso em ${dataFormatada} \xE0s ${horaFormatada}.`;
     addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
-    addTXT({ page, text: "Powered by @node-sped-pdf", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
   }
   async function addIMG({
     page,

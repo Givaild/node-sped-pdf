@@ -542,7 +542,6 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
         const textoEsquerda = `Impresso em ${dataFormatada} às ${horaFormatada}.`;
 
         addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
-        addTXT({ page, text: "Powered by @node-sped-pdf", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
     }
 
 
