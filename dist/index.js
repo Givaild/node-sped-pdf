@@ -20,7 +20,6 @@ var DANFe = async (data = {}) => {
       "soap:Body",
       "nfeResultMsg",
       "nfeDistDFeInteresseResponse",
-      "protNFe",
       "enviNFe",
       "nfeProc"
     ];
@@ -193,12 +192,13 @@ var DANFe = async (data = {}) => {
     }
   }
   async function bloco0(page = PDF.pages[PDF.pages.length - 1]) {
+    const nomeDestinatario = xml.NFe.infNFe.ide.tpAmb == 2 ? "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL" : xml.NFe.infNFe.dest?.xNome || "";
     addRet(page, 0, PDF.mtBlock + 0, PDF.width, 50);
     addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
     addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
     addRet(page, 0, PDF.mtBlock + 25, PDF.width * 0.8, 25);
     addRet(page, PDF.width * 0.17, PDF.mtBlock + 25, PDF.width * 0.63, 25);
-    addTXT({ page, text: `RECEBEMOS DE ${xml.NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVI\xC7OS CONSTANTES DA NOTA FISCAL ELETR\xD4NICA INDICADA ABAIXO. EMISS\xC3O: ${new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString("pt-BR")} VALOR TOTAL: ${parseFloat(xml.NFe.infNFe.total.ICMSTot.vNF).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} DESTINAT\xC1RIO: NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL - ${xml.NFe.infNFe.dest.enderDest.xLgr}, ${xml.NFe.infNFe.dest.enderDest.nro} ${xml.NFe.infNFe.dest.enderDest.xBairro} ${xml.NFe.infNFe.dest.enderDest.xMun}-${xml.NFe.infNFe.dest.enderDest.UF}`, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
+    addTXT({ page, text: `RECEBEMOS DE ${xml.NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVI\xC7OS CONSTANTES DA NOTA FISCAL ELETR\xD4NICA INDICADA ABAIXO. EMISS\xC3O: ${new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString("pt-BR")} VALOR TOTAL: ${parseFloat(xml.NFe.infNFe.total.ICMSTot.vNF).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} DESTINAT\xC1RIO: ${nomeDestinatario} - ${xml.NFe.infNFe.dest.enderDest.xLgr}, ${xml.NFe.infNFe.dest.enderDest.nro} ${xml.NFe.infNFe.dest.enderDest.xBairro} ${xml.NFe.infNFe.dest.enderDest.xMun}-${xml.NFe.infNFe.dest.enderDest.UF}`, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
     addTXT({ page, text: "DATA DE RECEBIMENTO", x: 2, y: PDF.mtBlock + 25, maxWidth: PDF.width * 0.78 });
     addTXT({ page, text: "ASSINATURA DO RECEBEDOR", x: PDF.width * 0.173, y: PDF.mtBlock + 25, maxWidth: PDF.width });
     addTXT({ page, size: 18, text: "NFe", x: PDF.width * 0.8, y: PDF.mtBlock, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
