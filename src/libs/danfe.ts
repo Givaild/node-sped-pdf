@@ -15,6 +15,8 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
 
     function normalizarXML(xml: any) {
         if (xml == "Bad Request") throw xml
+        // 'protNFe' NAO entra nesta lista: achatar a chave removia o protocolo de
+        // autorizacao (infProt.nProt / infProt.dhRecbto) do caminho lido na renderizacao.
         const clear: any = [
             'S:Envelope',
             'S:Body',
@@ -24,7 +26,6 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
             'soap:Body',
             'nfeResultMsg',
             'nfeDistDFeInteresseResponse',
-            'protNFe',
             'enviNFe',
             'nfeProc'
         ]
