@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, PDFFont } from "pdf-lib"
+import { PDFDocument, StandardFonts, rgb, degrees, PDFFont } from "pdf-lib"
 import { XMLParser } from "fast-xml-parser"
 import JsBarcode from "jsbarcode"
 
@@ -65,6 +65,36 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
     if (typeof consulta?.retConsSitNFe?.procEventoNFe != "undefined")
         consulta.retConsSitNFe.procEventoNFe = Array.isArray(consulta.retConsSitNFe.procEventoNFe) ? consulta.retConsSitNFe.procEventoNFe : [consulta.retConsSitNFe.procEventoNFe];
 
+    /**
+     * Protocolo e data do CANCELAMENTO — nao os da autorizacao.
+     *
+     * Sao dois documentos e dois protocolos: a nota guarda o da autorizacao (cStat 100) e o
+     * evento 110111 tem o seu (cStat 135). Imprimir o da autorizacao embaixo de "NOTA FISCAL
+     * CANCELADA" e um erro comum (o DANFE de alguns provedores faz isso) e engana quem le,
+     * porque o numero parece certo.
+     */
+    const cancelamento = ((): { protocolo: string; quando: string } | null => {
+        const eventos = consulta?.retConsSitNFe?.procEventoNFe;
+        if (!Array.isArray(eventos)) return null;
+
+        for (const evento of eventos) {
+            const inf = evento?.retEvento?.infEvento;
+            if (inf?.tpEvento != "110111") continue;
+
+            const protocolo = String(inf?.nProt ?? "");
+            if (!protocolo) return null;
+
+            // `dhRegEvento` vem com offset (…-03:00); Date resolve o fuso sozinho.
+            const data = new Date(String(inf?.dhRegEvento ?? ""));
+            const quando = Number.isNaN(data.getTime())
+                ? ""
+                : `${data.toLocaleDateString("pt-BR")}, ${data.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+
+            return { protocolo, quando };
+        }
+        return null;
+    })();
+
     if (!xml?.NFe?.infNFe) {
         throw new Error("XML inválido para DANFe: não foi encontrada a tag NFe/infNFe.");
     }
@@ -128,13 +158,15 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         lineHeight,
         align = 'left',
         cacl = false,
-        opacity = 1
+        opacity = 1,
+        color = rgb(0, 0, 0)
     }: {
         page: any;
         text: string;
         x: number;
         y: number;
         opacity?: number;
+        color?: ReturnType<typeof rgb>;
         maxWidth: number;
         fontStyle?: 'normal' | 'negrito' | 'italic';
         size?: number;
@@ -185,10 +217,53 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
                 y: ((PDF.height - effectiveLineHeight) - (y + 4)) - index * effectiveLineHeight,
                 size,
                 font,
+                color,
                 opacity: opacity || 1
             });
         });
         return lines.length;
+    }
+
+
+    /**
+     * Marca d'agua na diagonal, centralizada na folha.
+     *
+     * Nao passa pelo addTXT de proposito: aquele quebra linha e trabalha em coordenada
+     * invertida (y medido do topo), enquanto a marca e uma linha so, girada, posicionada pelo
+     * centro geometrico da pagina. Aqui o pdf-lib e usado direto, na origem dele (canto
+     * inferior esquerdo), que e o que torna o calculo do angulo legivel.
+     *
+     * O deslocamento de meia largura projetada em cos/sen e o que centraliza o texto DEPOIS de
+     * girado — sem isso ele gira em torno do inicio e sai da folha.
+     */
+    async function addMarcaDagua({
+        page,
+        text,
+        size = 42,
+        angulo = 45,
+        cor = rgb(0.80, 0.12, 0.12),
+        opacity = 0.22,
+    }: {
+        page: any;
+        text: string;
+        size?: number;
+        angulo?: number;
+        cor?: ReturnType<typeof rgb>;
+        opacity?: number;
+    }): Promise<void> {
+        const font = await PDF.doc.embedFont(StandardFonts.HelveticaBold);
+        const largura = font.widthOfTextAtSize(text, size);
+        const rad = (angulo * Math.PI) / 180;
+
+        page.drawText(text, {
+            x: PDF.width / 2 - (largura / 2) * Math.cos(rad),
+            y: PDF.height / 2 - (largura / 2) * Math.sin(rad),
+            size,
+            font,
+            color: cor,
+            opacity,
+            rotate: degrees(angulo),
+        });
     }
 
 
@@ -257,14 +332,16 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         for (const [i, page] of PDF.pages.entries()) {
             addTXT({ page, size: 8, text: `Folha ${i + 1}/${PDF.pages.length}`, x: 235, y: (i == 0 ? 142 : 82), maxWidth: PDF.width * 0.19, align: "center", fontStyle: "italic" });
 
+            // Homologacao: cinza, para nao competir com o carimbo de cancelamento quando os
+            // dois aparecem na mesma folha (nota de teste cancelada).
             if (xml.NFe.infNFe.ide.tpAmb == "2") {
-                addTXT({ page, size: 30, text: `NFe EMITIDA EM HOMOLOGAÇÃO SEM VALOR FISCAL`, x: 0, y: PDF.height * 0.5, maxWidth: PDF.width, align: "center", opacity: 0.5, fontStyle: "negrito" });
+                await addMarcaDagua({ page, text: "SEM VALOR FISCAL", size: 40, cor: rgb(0.45, 0.45, 0.45), opacity: 0.18 });
             }
 
             if (typeof consulta?.retConsSitNFe?.procEventoNFe != "undefined") {
                 for (const event of consulta.retConsSitNFe.procEventoNFe) {
                     if (event.retEvento.infEvento.tpEvento == "110111") {
-                        addTXT({ page, size: 50, text: `CANCELADA`, x: 0, y: PDF.height * 0.60, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+                        await addMarcaDagua({ page, text: "NOTA CANCELADA", size: 44 });
                     }
                 }
             }
@@ -766,7 +843,25 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         const horaFormatada = agora.toLocaleTimeString('pt-BR');
         const textoEsquerda = `Impresso em ${dataFormatada} às ${horaFormatada}. ${xml.NFe.infNFe?.infRespTec?.xContato || ""}`;
 
-        addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
+        addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.45, align: "left" });
+
+        // O carimbo diagonal diz QUE a nota foi cancelada; esta linha diz QUANDO e com qual
+        // protocolo — o do EVENTO, que e o que o contador confere contra o procEventoNFe.
+        //
+        // Vai no rodape, a direita, porque acima nao sobra folha: o quadro de dados adicionais
+        // termina a 22pt do fim da pagina, e esses 22pt sao justamente a faixa do rodape.
+        if (cancelamento) {
+            addTXT({
+                page,
+                text: `NOTA FISCAL CANCELADA — Protocolo ${cancelamento.protocolo}${cancelamento.quando ? ` em ${cancelamento.quando}` : ""}`,
+                x: PDF.width * 0.45,
+                y: PDF.mtBlock + 8,
+                maxWidth: PDF.width * 0.54,
+                align: "right",
+                fontStyle: "negrito",
+                color: rgb(0.70, 0.10, 0.10),
+            });
+        }
     }
 
 

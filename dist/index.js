@@ -1,5 +1,5 @@
 // src/libs/danfe.ts
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
 import { XMLParser } from "fast-xml-parser";
 import JsBarcode from "jsbarcode";
 var DANFe = async (data = {}) => {
@@ -45,6 +45,20 @@ var DANFe = async (data = {}) => {
   }, isBrowser = typeof window !== "undefined", xml = normalizarXML(parser.parse(data.xml || "")), consulta = typeof data.consulta != "undefined" ? parser.parse(data.consulta) : {}, logo = data.logo, imgDemo = data.imgDemo, protNFe = null;
   if (typeof consulta?.retConsSitNFe?.procEventoNFe != "undefined")
     consulta.retConsSitNFe.procEventoNFe = Array.isArray(consulta.retConsSitNFe.procEventoNFe) ? consulta.retConsSitNFe.procEventoNFe : [consulta.retConsSitNFe.procEventoNFe];
+  const cancelamento = (() => {
+    const eventos = consulta?.retConsSitNFe?.procEventoNFe;
+    if (!Array.isArray(eventos)) return null;
+    for (const evento of eventos) {
+      const inf = evento?.retEvento?.infEvento;
+      if (inf?.tpEvento != "110111") continue;
+      const protocolo = String(inf?.nProt ?? "");
+      if (!protocolo) return null;
+      const data2 = new Date(String(inf?.dhRegEvento ?? ""));
+      const quando = Number.isNaN(data2.getTime()) ? "" : `${data2.toLocaleDateString("pt-BR")}, ${data2.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+      return { protocolo, quando };
+    }
+    return null;
+  })();
   if (!xml?.NFe?.infNFe) {
     throw new Error("XML inv\xE1lido para DANFe: n\xE3o foi encontrada a tag NFe/infNFe.");
   }
@@ -96,7 +110,8 @@ var DANFe = async (data = {}) => {
     lineHeight,
     align = "left",
     cacl = false,
-    opacity = 1
+    opacity = 1,
+    color = rgb(0, 0, 0)
   }) {
     let font;
     switch (fontStyle) {
@@ -128,10 +143,32 @@ var DANFe = async (data = {}) => {
         y: PDF.height - effectiveLineHeight - (y + 4) - index * effectiveLineHeight,
         size,
         font,
+        color,
         opacity: opacity || 1
       });
     });
     return lines.length;
+  }
+  async function addMarcaDagua({
+    page,
+    text,
+    size = 42,
+    angulo = 45,
+    cor = rgb(0.8, 0.12, 0.12),
+    opacity = 0.22
+  }) {
+    const font = await PDF.doc.embedFont(StandardFonts.HelveticaBold);
+    const largura = font.widthOfTextAtSize(text, size);
+    const rad = angulo * Math.PI / 180;
+    page.drawText(text, {
+      x: PDF.width / 2 - largura / 2 * Math.cos(rad),
+      y: PDF.height / 2 - largura / 2 * Math.sin(rad),
+      size,
+      font,
+      color: cor,
+      opacity,
+      rotate: degrees(angulo)
+    });
   }
   function wrapText(text, maxWidth, font, fontSize) {
     const words = text.split(" ");
@@ -182,12 +219,12 @@ var DANFe = async (data = {}) => {
     for (const [i, page] of PDF.pages.entries()) {
       addTXT({ page, size: 8, text: `Folha ${i + 1}/${PDF.pages.length}`, x: 235, y: i == 0 ? 142 : 82, maxWidth: PDF.width * 0.19, align: "center", fontStyle: "italic" });
       if (xml.NFe.infNFe.ide.tpAmb == "2") {
-        addTXT({ page, size: 30, text: `NFe EMITIDA EM HOMOLOGA\xC7\xC3O SEM VALOR FISCAL`, x: 0, y: PDF.height * 0.5, maxWidth: PDF.width, align: "center", opacity: 0.5, fontStyle: "negrito" });
+        await addMarcaDagua({ page, text: "SEM VALOR FISCAL", size: 40, cor: rgb(0.45, 0.45, 0.45), opacity: 0.18 });
       }
       if (typeof consulta?.retConsSitNFe?.procEventoNFe != "undefined") {
         for (const event of consulta.retConsSitNFe.procEventoNFe) {
           if (event.retEvento.infEvento.tpEvento == "110111") {
-            addTXT({ page, size: 50, text: `CANCELADA`, x: 0, y: PDF.height * 0.6, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+            await addMarcaDagua({ page, text: "NOTA CANCELADA", size: 44 });
           }
         }
       }
@@ -578,7 +615,19 @@ var DANFe = async (data = {}) => {
     const dataFormatada = agora.toLocaleDateString("pt-BR");
     const horaFormatada = agora.toLocaleTimeString("pt-BR");
     const textoEsquerda = `Impresso em ${dataFormatada} \xE0s ${horaFormatada}. ${xml.NFe.infNFe?.infRespTec?.xContato || ""}`;
-    addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
+    addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.45, align: "left" });
+    if (cancelamento) {
+      addTXT({
+        page,
+        text: `NOTA FISCAL CANCELADA \u2014 Protocolo ${cancelamento.protocolo}${cancelamento.quando ? ` em ${cancelamento.quando}` : ""}`,
+        x: PDF.width * 0.45,
+        y: PDF.mtBlock + 8,
+        maxWidth: PDF.width * 0.54,
+        align: "right",
+        fontStyle: "negrito",
+        color: rgb(0.7, 0.1, 0.1)
+      });
+    }
   }
   async function addIMG({
     page,
