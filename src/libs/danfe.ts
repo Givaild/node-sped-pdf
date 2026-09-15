@@ -4,7 +4,7 @@ import JsBarcode from "jsbarcode"
 
 
 
-const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null, imgDemo?: string | null } = {}) => {
+const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null, imgDemo?: string | null, foneEmitente?: string | null } = {}) => {
     const parser = new XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: "@",
@@ -407,7 +407,15 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         addTXT({ page, size: sizeNome, text: `${xml.NFe.infNFe.emit.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
         addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xLgr}, N°${xml.NFe.infNFe.emit.enderEmit.nro}`, x: 0, y: PDF.mtBlock + 45 + mt, maxWidth: PDF.width * 0.42, align: "center" });
         addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xBairro} - ${xml.NFe.infNFe.emit.enderEmit.CEP}`, x: 0, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
-        addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xMun} - ${xml.NFe.infNFe.emit.enderEmit.UF} Fone: ${xml.NFe.infNFe.emit.enderEmit?.fone || ''}`, x: 0, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+        // Sem `fone` no XML, o rotulo sai orfao ("Hortolandia - SP Fone:") e parece defeito de
+        // impressao. O campo e OPCIONAL no leiaute da NF-e: quando nao vem, a linha some inteira.
+        //
+        // `foneEmitente` e a saida para quem tem o telefone no proprio cadastro e quer ve-lo na
+        // folha: o XML manda, e so na ausencia dele o valor de fora entra. Nunca sobrescreve o
+        // documento fiscal — DANFE que contradiz o XML e pior do que DANFE sem telefone.
+        const foneEmit = xml.NFe.infNFe.emit.enderEmit?.fone || data.foneEmitente || "";
+        const municipioUF = `${xml.NFe.infNFe.emit.enderEmit.xMun} - ${xml.NFe.infNFe.emit.enderEmit.UF}`;
+        addTXT({ page, size: 9, text: foneEmit ? `${municipioUF} Fone: ${foneEmit}` : municipioUF, x: 0, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
 
         addTXT({ page, size: 16, text: "DANFE", x: PDF.width * 0.393, y: PDF.mtBlock + 3, maxWidth: PDF.width * 0.2, align: "center", fontStyle: "negrito" });
         addTXT({ page, size: 8, text: "Documento Auxiliar da Nota Fiscal Eletrônica", x: PDF.width * 0.4, y: PDF.mtBlock + 19, maxWidth: PDF.width * 0.18, align: "center" });
@@ -758,22 +766,44 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         const colunas = [0.1, 0.34, 0.403, 0.453, 0.488, 0.525, 0.6, 0.655, 0.712, 0.76, 0.815, 0.875, 0.92, 0.957];
         for (const x of colunas) addLTV(page, PDF.width * x, PDF.mtBlock + 8, blockH);
 
+        /**
+         * Geometria de uma celula da tabela de itens, derivada das MESMAS divisorias desenhadas
+         * acima (0 = CODIGO PRODUTO, 14 = ALIQ. IPI).
+         *
+         * Antes, titulo e valor tinham cada um o seu `x` ajustado no olho e um `maxWidth` fixo de
+         * 0.061 que nao correspondia a largura de celula nenhuma — por isso as colunas da direita
+         * saiam tortas, cada uma com um desvio diferente.
+         *
+         * O +2 compensa o desenho do addTXT: ele desenha em `x + 4` e centraliza dentro de
+         * `maxWidth - 4`, o que joga o texto 2pt para a ESQUERDA do centro da celula. Somando 2,
+         * o centro do texto cai no centro real entre as duas divisorias.
+         */
+        const celula = (indice: number): { x: number; maxWidth: number } => {
+            const bordas = [0, ...colunas, 1];
+            return {
+                x: PDF.width * bordas[indice] + 2,
+                maxWidth: PDF.width * (bordas[indice + 1] - bordas[indice]),
+            };
+        };
+
         // Títulos
         addTXT({ page, text: "CÓDIGO PRODUTO", x: PDF.width * 0.003, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.09, align: "center" });
         addTXT({ page, text: "DESCRIÇÃO DO PRODUTO / SERVIÇO", x: PDF.width * 0.1, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.24, align: "center" });
-        addTXT({ page, text: "NCM/SH", x: PDF.width * 0.34, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.06, align: "center" });
-        addTXT({ page, text: "O/CSOSN", x: PDF.width * 0.4, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.06, align: "center" });
-        addTXT({ page, text: "CFOP", x: PDF.width * 0.46, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.025, align: "center" });
-        addTXT({ page, text: "UN", x: PDF.width * 0.495, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.025, align: "center" });
-        addTXT({ page, text: "QUANT.", x: PDF.width * 0.525, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.07, align: "center" });
-        addTXT({ page, text: "VALOR UNIT", x: PDF.width * 0.592, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
-        addTXT({ page, text: "VALOR TOTAL", x: PDF.width * 0.65, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
-        addTXT({ page, text: "VALOR DESC", x: PDF.width * 0.7, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
-        addTXT({ page, text: "B.CÁLC ICMS", x: PDF.width * 0.75, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
-        addTXT({ page, text: "VALOR ICMS", x: PDF.width * 0.81, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
-        addTXT({ page, text: "VALOR IPI", x: PDF.width * 0.862, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
-        addTXT({ page, text: "ALÍQ. ICMS", x: PDF.width * 0.924, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.03, align: "center" });
-        addTXT({ page, text: "ALÍQ. IPI", x: PDF.width * 0.961, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.03, align: "center" });
+        addTXT({ page, text: "NCM/SH", ...celula(2), y: PDF.mtBlock + 12, align: "center" });
+        // Espaco no lugar da barra de proposito: a celula tem ~30pt e o titulo inteiro nao cabe
+        // numa linha so — o wrap do addTXT quebra por espaco, entao "CST" fica em cima de "CSOSN".
+        addTXT({ page, text: "CST CSOSN", ...celula(3), y: PDF.mtBlock + 8.5, align: "center" });
+        addTXT({ page, text: "CFOP", ...celula(4), y: PDF.mtBlock + 12, align: "center" });
+        addTXT({ page, text: "UN", ...celula(5), y: PDF.mtBlock + 12, align: "center" });
+        addTXT({ page, text: "QUANT.", ...celula(6), y: PDF.mtBlock + 12, align: "center" });
+        addTXT({ page, text: "VALOR UNIT", ...celula(7), y: PDF.mtBlock + 8.5, align: "center" });
+        addTXT({ page, text: "VALOR TOTAL", ...celula(8), y: PDF.mtBlock + 8.5, align: "center" });
+        addTXT({ page, text: "VALOR DESC", ...celula(9), y: PDF.mtBlock + 8.5, align: "center" });
+        addTXT({ page, text: "B.CÁLC ICMS", ...celula(10), y: PDF.mtBlock + 8.5, align: "center" });
+        addTXT({ page, text: "VALOR ICMS", ...celula(11), y: PDF.mtBlock + 8.5, align: "center" });
+        addTXT({ page, text: "VALOR IPI", ...celula(12), y: PDF.mtBlock + 8.5, align: "center" });
+        addTXT({ page, text: "ALÍQ. ICMS", ...celula(13), y: PDF.mtBlock + 8.5, align: "center" });
+        addTXT({ page, text: "ALÍQ. IPI", ...celula(14), y: PDF.mtBlock + 8.5, align: "center" });
 
         // Iterar pelos produtos
         let line = 23,
@@ -798,20 +828,20 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
             const xProdH = await addTXT({ page, text: prod.xProd, x: PDF.width * 0.096, y: PDF.mtBlock + line, maxWidth: PDF.width * 0.237, align: "left" });
             const y = PDF.mtBlock + line + ((xProdH - 1) * 2.7);
 
-            addTXT({ page, text: prod.cProd, x: 0, y, maxWidth: PDF.width * 0.1, align: "center" });
-            addTXT({ page, text: prod.NCM, x: PDF.width * 0.34, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: ICMS.CSOSN || ICMS.CST || "", x: PDF.width * 0.398, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: prod.CFOP, x: PDF.width * 0.44, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: prod.uCom, x: PDF.width * 0.476, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: fmt(prod.qCom), x: PDF.width * 0.533, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: fmt(prod.vUnCom), x: PDF.width * 0.597, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: fmt(prod.vProd), x: PDF.width * 0.655, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: fmt(prod.vDesc), x: PDF.width * 0.705, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: fmt(prod.vBC), x: PDF.width * 0.756, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: fmt(prod.vICMS), x: PDF.width * 0.816, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: fmt(prod.vIPI), x: PDF.width * 0.868, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: fmt(ICMS.pICMS), x: PDF.width * 0.908, y, maxWidth: PDF.width * 0.061, align: "center" });
-            addTXT({ page, text: fmt(IPI.pIPI), x: PDF.width * 0.954, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: prod.cProd, ...celula(0), y, align: "center" });
+            addTXT({ page, text: prod.NCM, ...celula(2), y, align: "center" });
+            addTXT({ page, text: ICMS.CSOSN || ICMS.CST || "", ...celula(3), y, align: "center" });
+            addTXT({ page, text: prod.CFOP, ...celula(4), y, align: "center" });
+            addTXT({ page, text: prod.uCom, ...celula(5), y, align: "center" });
+            addTXT({ page, text: fmt(prod.qCom), ...celula(6), y, align: "center" });
+            addTXT({ page, text: fmt(prod.vUnCom), ...celula(7), y, align: "center" });
+            addTXT({ page, text: fmt(prod.vProd), ...celula(8), y, align: "center" });
+            addTXT({ page, text: fmt(prod.vDesc), ...celula(9), y, align: "center" });
+            addTXT({ page, text: fmt(prod.vBC), ...celula(10), y, align: "center" });
+            addTXT({ page, text: fmt(prod.vICMS), ...celula(11), y, align: "center" });
+            addTXT({ page, text: fmt(prod.vIPI), ...celula(12), y, align: "center" });
+            addTXT({ page, text: fmt(ICMS.pICMS), ...celula(13), y, align: "center" });
+            addTXT({ page, text: fmt(IPI.pIPI), ...celula(14), y, align: "center" });
             line += xProdH * 6.9;
         }
         PDF.mtBlock += blockH + 10;
